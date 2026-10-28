@@ -1,5 +1,11 @@
 import csv  
- 
+import numpy as np
+
+def encode_list(lst):
+    vals = sorted(list(set(lst)))
+    mapping = {v: i for i, v in enumerate(vals)}
+    return np.array([mapping[v] for v in lst], dtype=float)
+
 def load_data(file_path):  
     pos = []  
     party = []  
@@ -17,10 +23,17 @@ def load_data(file_path):
                 prov.append(row.get('Province', '').strip()) 
                 y.append(target)  
 
+    e_pos = encode_list(pos)
+    e_party = encode_list(party) 
+    e_reg = encode_list(reg) 
+    e_prov = encode_list(prov) 
 
-    return pos, party, reg, prov, y 
+    x = np.column_stack((e_pos, e_party, e_reg, e_prov)) 
+    y = np.array(y,dtype=int)
+
+    return x,y
 
 if __name__ == "__main__":  
     path = "political_dynasty.csv" 
-    pos, party, reg, prov, y = load_data(path)  
-    print(len(y))  
+    x, y = load_data(path)  
+    print(x.shape, y.shape)  
