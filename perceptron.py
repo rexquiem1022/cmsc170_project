@@ -10,7 +10,7 @@ from data_preprocessing import load_data
 
 
 def sgn(v):
-    # Lab defines +1 if v > 0 and -1 if v < 0; v == 0 is not defined,
+    # +1 if v > 0 and -1 if v < 0; v == 0 is not defined,
     # so we send it to -1 here.
     return 1 if v > 0 else -1
 
