@@ -1,6 +1,7 @@
 import numpy as np
 from data_preprocessing import load_data
 
+#minkowski distance formula
 def minkowski(x, v, p=2.0): 
     return np.sum(np.abs(x-v)**p)**(1.0 / p)  
 
@@ -15,39 +16,45 @@ class KNN:
 
     def predict(self, x_test):  
         preds = []  
-        for point in x_test: 
+        for point in x_test: #thsi is for every single unknown politician in our test set
+            # this calculates the distance between this unknown point and every point in the training set
             dists = np.sum(np.abs(self.x_train-point)**self.p, axis=1)**(1.0 / self.p) 
+           #this sort the distances from closest to furthest, and grab the index numbers of the top 'k'
             k_idx = np.argsort(dists)[:self.k] 
+            #looks up for the actual labesl/targets for the top 5
             k_labels = self.y_train[k_idx] 
+            #counts how many votes for each labels
             counts = np.bincount(k_labels) 
+            #appends the winner to the prediction list
             preds.append(np.argmax(counts))  
         return np.array(preds) 
 
+#for the calcualtion of the metrics
 def compute_metrics(y_true, y_pred):
-    tp = np.sum((y_true==1) & (y_pred==1))
-    fp = np.sum((y_true==0) & (y_pred==1))
-    tn = np.sum((y_true==0) & (y_pred==0))
-    fn = np.sum((y_true==1) & (y_pred==0))
+    tp = np.sum((y_true==1) & (y_pred==1)) #true positive
+    fp = np.sum((y_true==0) & (y_pred==1)) #false positive
+    tn = np.sum((y_true==0) & (y_pred==0)) #true negative
+    fn = np.sum((y_true==1) & (y_pred==0)) #false negative
     total = len(y_true)
-    if total > 0:
+    if total > 0: #accuracy
         acc =(tp+tn)/total
     else:
         acc = 0.0
 
     prec_den = tp + fp
-    if prec_den > 0:
+    if prec_den > 0: #precision
         prec =tp/prec_den
     else:
         prec = 0.0
 
     recall_den = tp + fn
-    if recall_den > 0:
+    if recall_den > 0: #recall
         rec =tp/recall_den
     else:
         rec=0.0
 
     f1_den = prec + rec
-    if f1_den>0:
+    if f1_den>0: #f1 score
         f1 = 2*(prec *rec)/f1_den
     else:
         f1 = 0.0
@@ -73,8 +80,8 @@ if __name__ == "__main__":
     model = KNN(k=5, p=2.0)
     model.fit(x_train, y_train)
 
-    sub_test_x = x_test[:500]
-    sub_test_y = y_test[:500]
+    sub_test_x = x_test
+    sub_test_y = y_test
     preds = model.predict(sub_test_x)
 
     correct = np.sum(preds==sub_test_y)
@@ -98,7 +105,7 @@ if __name__ == "__main__":
 
 
     train_len = len(x_train)
-    for i in incorrect[:15]:
+    for i in incorrect:
         rec_num=train_len+i+1
         act =label_map[sub_test_y[i]]
         pred =label_map[preds[i]]
