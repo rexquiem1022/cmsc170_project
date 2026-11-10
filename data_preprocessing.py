@@ -43,7 +43,21 @@ def print_dataset_statistics(file_path):
     print(f"Unique Regions:{len(regions)}")
     print(f"Unique Provinces:{len(provinces)}")
     print(f"Unique Municipalities: {len(municipalities)}")
-                                                                     
+                       
+
+    def undersample_5050(x, y, seed=42):
+        np.random.seed(seed)
+        fat_indices = np.where(y == 1)[0]
+        non_fat_indices = np.where(y == 0)[0]
+        
+        n_fat = len(fat_indices)
+        selected_non_fat = np.random.choice(non_fat_indices, size=n_fat, replace=False)
+        
+        balanced_indices = np.concatenate([fat_indices, selected_non_fat])
+        np.random.shuffle(balanced_indices)
+        
+        return x[balanced_indices], y[balanced_indices]
+                                              
 if __name__ == "__main__":  
     path = "political_dynasty.csv" 
     print_dataset_statistics(path)
