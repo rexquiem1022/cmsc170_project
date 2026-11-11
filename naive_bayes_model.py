@@ -1,5 +1,6 @@
 import csv
 import numpy as np
+from data_preprocessing import *
 
 # ------------------------------------------------------------------ CONFIG
 DATA_PATH = "political_dynasty.csv"   # training CSV
@@ -29,6 +30,15 @@ def add_tenure(rows): # Derived from year of serving
     for r in rows:
         r["tenure"] = str(len(years[key(r)]))
 
+
+def load_balanced_rows(path, seed=42):
+    rows = load_csv(path)
+    for i, r in enumerate(rows):
+        r["_row"] = i + 2                      # original CSV row number
+    add_tenure(rows)                           # BEFORE balancing, or tenure counts get wrong
+    y = np.array([int(float(r[TARGET_COL] or 0)) for r in rows])
+    keep, _ = undersample_5050(np.arange(len(rows)), y, seed=seed)
+    return [rows[i] for i in sorted(keep)]     # balanced 50/50 rows
 
 def factorize(values):
     cats = sorted(set(values))
@@ -163,14 +173,13 @@ def run_model(rows, feats, y, groups, k, show):
     for j in wrong[:show]:
         r = rows[te[j]]
         name = f"{r['First Name'].strip()} {r['Last Name']}"[:28]
-        print(f"{te[j] + 2:<10} | {name:<28} | {r['Province'][:20]:<20} | "
-              f"{r['Position'][:22]:<22} | {'non-fat':<8} | {'fat':<9} | {proba[j]:.3f}")
+        print(f"{r['_row']:<10} | {name:<28} | {r['Province'][:20]:<20} | "
+            f"{r['Position'][:22]:<22} | {'non-fat':<8} | {'fat':<9} | {proba[j]:.3f}")
 
 
 
 if __name__ == "__main__":
-    rows = load_csv(DATA_PATH)
-    add_tenure(rows)
+    rows = load_balanced_rows(DATA_PATH)       # was: load_data(...) + add_tenure(rows)
     feats, y, groups = prepare(rows)
     print(f"Loaded {len(rows):,} records from {DATA_PATH}  |  fat rate {y.mean():.1%}")
     run_model(rows, feats, y, groups, K_SMOOTHING, SHOW)
