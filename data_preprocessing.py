@@ -76,7 +76,7 @@ def load_data(file_path, split_ratio=0.8, seed=42):
             party.append(row.get('Party', '').strip())
             reg.append(row.get('Region', '').strip())
             prov.append(row.get('Province', '').strip())
-            muni.append(row.get('Municipality', '').strip())
+            muni.append(row.get('Municipality.City', '').strip())
             
             raw_tenure = row.get('Tenure', row.get('tenure', 0.0))
             try:
