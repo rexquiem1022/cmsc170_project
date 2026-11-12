@@ -27,7 +27,7 @@ def print_dataset_statistics(file_path):
             parties.add(row.get('Party', '').strip())
             regions.add(row.get('Region', '').strip())
             provinces.add(row.get('Province', '').strip())
-            municipalities.add(row.get('Municipality', '').strip())
+            municipalities.add(row.get('Municipality.City', '').strip())
             
     fat = y_counts[1]
     non_fat = y_counts[0]
