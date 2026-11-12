@@ -7,29 +7,34 @@ from data_preprocessing import load_data
 def minkowski(x, v, p=2.0):
     return np.sum(np.abs(x - v) ** p) ** (1.0 / p)
 
-class KNN:
-    def __init__(self, k=5, p=2.0):
-        self.k = k
-        self.p = p
+class KNN: 
+    def __init__(self, p=2.0): 
+        # We removed k from here because we will pass a list of k's directly
+        self.p = p 
 
-    def fit(self, x_train, y_train):
-        self.x_train = x_train
-        self.y_train = y_train
+    def fit(self, x_train, y_train):  
+        self.x_train = x_train  
+        self.y_train = y_train  
 
-    def predict(self, x_test):
-        preds = []
-        for point in x_test: # this is for every single unknown politician in our test set
-            # this calculates the distance between this unknown point and every point in the training set
-            dists = np.sum(np.abs(self.x_train - point) ** self.p, axis=1) ** (1.0 / self.p)
-            # this sorts the distances from closest to furthest, and grab the index numbers of the top 'k'
-            k_idx = np.argsort(dists)[:self.k]
-            # looks up for the actual labels/targets for the top 'k'
-            k_labels = self.y_train[k_idx]
-            # counts how many votes for each labels
-            counts = np.bincount(k_labels)
-            # appends the winner to the prediction list
-            preds.append(np.argmax(counts))
-        return np.array(preds)
+    def predict_multiple_k(self, x_test, k_candidates):  
+        #this returns a dictionary of predictions for every k at the same time
+        all_preds = {k: [] for k in k_candidates} 
+        max_k = max(k_candidates)
+
+        for point in x_test: 
+            dists = np.sum(np.abs(self.x_train - point) ** self.p, axis=1) 
+            
+            #this sorts distances once and grab the max amount of neighbors we could possibly need
+            k_idx_max = np.argsort(dists)[:max_k] 
+            
+            #this instantly distribute the votes for every k candidate without recalculating distance
+            for k in k_candidates:
+                k_labels = self.y_train[k_idx_max[:k]] 
+                counts = np.bincount(k_labels) 
+                all_preds[k].append(np.argmax(counts))  
+                
+        #thusi converts all prediction lists to numpy arrays
+        return {k: np.array(preds) for k, preds in all_preds.items()}
 
 # for the calculation of the metrics
 def compute_metrics(y_true, y_pred):
@@ -102,45 +107,75 @@ if __name__ == "__main__":
     print(f"Total Feature Subsets to Evaluate : {len(all_feature_combos)}")
     print(f"Candidates for k : {k_candidates}\n")
     
-    #thsi evaluate on a 500-sample test slice for fast optimization search
-    sub_test_len = min(500, len(x_test))
+    #thsi evaluate on a 5000 sample test slice for fast optimization search
+    sub_test_len = min(1000, len(x_test))
     sub_test_x = x_test[:sub_test_len]
     sub_test_y = y_test[:sub_test_len]
     
-    best_f1 = -1.0
-    best_combo = None
-    best_k = None
-    best_preds = None
+    #this stores every single result here to sort them later
+    all_results = []
     
-    #this loops through all combinations 
-    for combo in all_feature_combos:
+    #this loops through ALL combinations
+    for i, combo in enumerate(all_feature_combos):
+        
+        # Prints an update to your console every 50 combinations
+        if i % 50 == 0:
+            print(f"Testing combination {i} out of {len(all_feature_combos)}...")
+            
         x_tr_sub = x_train[:, combo]
         x_te_sub = sub_test_x[:, combo]
+        
+        #this nitializes and fit the model once per feature combination
+        model = KNN(p=2.0)
+        model.fit(x_tr_sub, y_train)
+        
+        #this gets predictions for all k candidates 
+        preds_dict = model.predict_multiple_k(x_te_sub, k_candidates)
+        
         for k in k_candidates:
-            model = KNN(k=k, p=2.0)
-            model.fit(x_tr_sub, y_train)
-            preds = model.predict(x_te_sub)
-            
+            preds = preds_dict[k]
             tp, fp, tn, fn, eval_acc, prec, rec, f1 = compute_metrics(sub_test_y, preds)
             
-            if f1 > best_f1:
-                best_f1 = f1
-                best_combo = combo
-                best_k = k
-                best_preds = preds
+            #this saves the result details to our list
+            all_results.append({
+                'f1': f1,
+                'combo': combo,
+                'k': k,
+                'preds': preds,
+                'metrics': (tp, fp, tn, fn, eval_acc, prec, rec, f1)
+            })
                 
-    #this prints best model results using your metrics_summary structure
-    best_feature_names = [feature_names[i] for i in best_combo]
-    print(f"BEST CONFIGURATION FOUND:")
-    print(f"Total Features Selected : {len(best_feature_names)}")
-    print(f"Features Selected       : {best_feature_names}")
-    print(f"Best k                  : {best_k}")
+    print(f"Testing combination {len(all_feature_combos)} out of {len(all_feature_combos)}... DONE!\n")
     
-    tp, fp, tn, fn, eval_acc, prec, rec, f1 = compute_metrics(sub_test_y, best_preds)
-    metrics_summary(f"KNN (k={best_k}, Best Feature Subset)", tp, fp, tn, fn, eval_acc, prec, rec, f1)
+    #this sorts all results by F1-Score in descending order (highest to lowest)
+    all_results.sort(key=lambda x: x['f1'], reverse=True)
+    
+    #this grabs the top 3
+    top_3_results = all_results[:3]
+    
+    print("==========================================================")
+    print(" TOP 3 CONFIGURATIONS FOUND")
+    print("==========================================================")
+    
+    for rank, res in enumerate(top_3_results, 1):
+        combo = res['combo']
+        k = res['k']
+        tp, fp, tn, fn, eval_acc, prec, rec, f1 = res['metrics']
+        
+        selected_feature_names = [feature_names[i] for i in combo]
+        
+        print(f"\n--- RANK {rank} ---")
+        print(f"Total Features Selected : {len(selected_feature_names)}")
+        print(f"Features Selected       : {selected_feature_names}")
+        print(f"Best k                  : {k}")
+        metrics_summary(f"RANK {rank} MODEL", tp, fp, tn, fn, eval_acc, prec, rec, f1)
+    
+    #this pulls the predictions from the absolute best model (Rank 1) to show incorrect samples
+    best_res = top_3_results[0]
+    best_preds = best_res['preds']
     
     #this prints sample incorrect classifications for the best model
-    print("Sample Incorrect Classifications (Best Model):")
+    print("Sample Incorrect Classifications (Absolute Best Model):")
     print(f"{'Data Record #':<14} | {'Actual':<10} | {'Predicted':<10}")
     print("-" * 42)
     
