@@ -72,10 +72,23 @@ def metrics_summary(model_name, tp, fp, tn, fn, acc, prec, rec, f1):
     print(f"Recall: {rec * 100:.2f}%")
     print(f"F1-Score: {f1 * 100:.2f}%")
 
+FEATURES = ["Position", "Party", "Region", "Province"]   # baseline features
+# FEATURES = ['Position', 'Municipality', 'Location_Combined']   # searched features
+
+
+def load_features(path):
+    """load_data's output without the Tenure column (Tenure is not used)."""
+    x_train, y_train, x_test, y_test, names = load_data(path)
+    keep = [i for i, n in enumerate(names) if n != "Tenure"]
+    return x_train[:, keep], y_train, x_test[:, keep], y_test, [names[i] for i in keep]
+
 
 if __name__ == "__main__":
     path = "political_dynasty.csv"
-    x_train, y_train, x_test, y_test = load_data(path)
+    x_train, y_train, x_test, y_test, feature_names = load_features(path)
+
+    cols = [feature_names.index(n) for n in FEATURES]
+    x_train, x_test = x_train[:, cols], x_test[:, cols]
 
     model = Perceptron(eta=0.1, max_epochs=50)
     model.fit(x_train, y_train)
@@ -85,7 +98,8 @@ if __name__ == "__main__":
     print("eta =", model.eta)
     print("Epochs run:", model.epochs_run)
     print("Converged:", model.converged)
-    print("Weights [bias, position, party, region, province]:", np.round(model.w, 3))
+    print("Features:", FEATURES)
+    print("Weights [bias, " + ", ".join(n.lower() for n in FEATURES) + "]:", np.round(model.w, 3))
 
     correct = np.sum(preds == y_test)
     total = len(y_test)
@@ -95,3 +109,7 @@ if __name__ == "__main__":
 
     tp, fp, tn, fn, acc, prec, rec, f1 = compute_metrics(y_test, preds)
     metrics_summary("Perceptron", tp, fp, tn, fn, acc, prec, rec, f1)
+
+    # reference: F1 of a model that always predicts "fat"
+    p_fat = y_test.mean()
+    print(f"\nAlways-'fat' baseline F1: {2 * p_fat / (1 + p_fat) * 100:.2f}%")
