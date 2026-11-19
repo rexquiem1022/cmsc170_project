@@ -70,7 +70,7 @@ Run the commands directly from the repository root:
 ## 4. Member Contribution Task Log
 
 | Member Name | Role & Core Contributions |
-| :--- | :--- | :---: |
+| :--- | :--- |
 | **Lance Gabriel A. Barroso** | **Group Leader & Lead Developer:** Architected and implemented the core data preprocessing pipeline (`data_preprocessing.py`), `undersample_5050` balancing logic, feature engineering (`Is_Executive`, `Location_Combined`), vectorized k-NN classifier (`knn_model.py`) with exhaustive `itertools` feature subset search, repository integration, readme and github pages initialization , and end-to-end experiment execution. | 
 | **Arman Carl P. Arañez** | **Data & Feature Contributor:** Assisted with dataset inspection, feature engineering (`Is_Major_Party`), and Milestone documentation. | 
 | **Jmil Anchelo N. Bodiongan** | **Algorithm Developer (Naïve Bayes):** Implemented the Gaussian Naïve Bayes classifier (`naive_bayes_model.py`), feature pair search (`naive_combo_finder.py`), and confusion matrix evaluation metrics ($TP, FP, TN, FN$). | 
