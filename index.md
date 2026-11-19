@@ -376,7 +376,7 @@ $$\text{Accuracy} = \frac{TP + TN}{TP + TN + FP + FN}, \qquad \text{Precision} =
 ### Visual Metric Comparison
 
 <div class="chart-box">
-  <h3 style="margin-top:0;">Figure 1: Model Performance Comparison (Accuracy vs. Precision vs. F1-Score)</h3>
+  <h3 style="margin-top:0;">Figure 2: Model Performance Comparison (Accuracy vs. Precision vs. F1-Score)</h3>
   <svg viewBox="0 0 720 260" width="100%" height="auto" xmlns="http://www.w3.org/2000/svg">
     <rect width="720" height="260" fill="#f8fbff" rx="12"/>
     <line x1="90" y1="30" x2="680" y2="30" stroke="#bae6fd" stroke-dasharray="4"/>
