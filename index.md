@@ -15,6 +15,10 @@
     line-height: 1.65;
   }
 
+  .markdown-body > h1:first-child {
+  display: none !important;
+}
+
   .hero-banner {
     position: relative;
     overflow: hidden;
