@@ -57,7 +57,6 @@ Run the commands directly from the repository root:
 * **Run Gaussian Naïve Bayes & Feature Combination Finder:**
   ```bash
   python3 naive_combo_finder.py
-  python3 naive_bayes_model.py
   ```
 * **Run Single-Layer Perceptron & 255-Subset Feature Search:**
   ```bash
