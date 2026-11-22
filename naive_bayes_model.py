@@ -141,26 +141,11 @@ def group_kfold(groups, n_splits):
     Uses additive smoothing, where a smoothing constant of 1 gives Laplace smoothing, so a category never seen in a class does not receive a probability of zero.
 '''
 class NaiveBayes:
-'''    
-    Stores the model settings without learning anything.
-    Training happens later in fit.
-    Parameter n_cats: A list with the number of distinct categories of each feature, in column order, used to size the count tables.
-    Parameter k: The additive smoothing constant, defaulting to 1.0, which is Laplace smoothing.
-    Returns: Nothing.
-'''   
+
     def __init__(self, n_cats, k=1.0):
         self.n_cats, self.k = n_cats, k
 
-'''
-    Learns the class priors and the per class category likelihoods from training data.
-    Computes the log prior of each class from its share of the training rows, using bincount with minlength 2 so that both classes always have an entry.
-    Builds, for every feature, a table of shape 2 by number of categories, where each class row holds the smoothed log probability of every category.
-    The probability is (count + k) / (class total + k * number of categories), and the minlength on bincount guarantees that categories absent from the training rows still receive the smoothed value.
-    Stores the results in log_prior and log_lik, where log_lik is a list with one table per feature.
-    Parameter X: An integer array of shape (n_samples, n_features) holding category codes, each below the matching entry of n_cats.
-    Parameter y: An integer array of 0/1 labels with one entry per row of X.
-    Returns: The fitted model itself, so that calls can be chained as in NaiveBayes(...).fit(...).
-'''   
+
     def fit(self, X, y):
         self.log_prior = np.log(np.bincount(y, minlength=2) / len(y))
         self.log_lik = []                                  # per feature: (2, n_categories)
@@ -173,15 +158,7 @@ class NaiveBayes:
             self.log_lik.append(table)
         return self
 
-'''    
-    Returns the probability that each row belongs to the positive class.
-    Starts every row at the log prior of both classes and adds, for each feature, the log likelihood of the observed category, which gives unnormalized log posteriors.
-    Converts the two log scores into P(class 1) with a logistic function of their difference, 1 / (1 + exp(score of class 0 minus score of class 1)).
-    Clips that difference to the range of -50 to 50 so that exp cannot overflow, which also keeps the probabilities just short of exactly 0 and 1.
-    Categories that were absent from the training rows are handled by the smoothing, but a code outside the range of n_cats will raise an index error.
-    Parameter X: An integer array of shape (n_samples, n_features) holding category codes.
-    Returns: A one dimensional numpy float array of length n_samples holding P(class 1), here the probability of being fat.
-'''    
+  
     def predict_proba(self, X):
         logp = np.tile(self.log_prior, (X.shape[0], 1))
         for i, table in enumerate(self.log_lik):
