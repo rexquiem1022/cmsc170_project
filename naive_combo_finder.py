@@ -4,7 +4,8 @@ import numpy as np
 from naive_bayes_model import *
 
 # ------------------------------------------------------------------ CONFIG
-COMBO_SIZE = 2          # Features to be chosen
+MIN_COMBO_SIZE = 0      # Smallest number of features in a combination (0 = empty set, class prior only)
+MAX_COMBO_SIZE = None   # Largest number of features in a combination (None = all features)
 N_SPLITS = 5            # grouped K-fold (relatives stay in the same fold)
 RANK_BY = "f1"          # f1 score ranking
 TOP = 10                # get top 10 best combos
@@ -51,12 +52,14 @@ def build_all_features(rows):
 '''
     Scores one combination of features with grouped cross validation.
     Stacks the chosen feature columns into one matrix and records the number of categories of each.
+    Handles an empty combination by giving the model zero feature columns, so it predicts from the class prior alone.
     Trains a fresh NaiveBayes model for every fold and predicts the held out rows, thresholding at THRESHOLD, so that every row receives exactly one out-of-fold prediction.
     Computes the metrics once over all rows using those out-of-fold predictions, which makes scores comparable between combinations.
     Returns: A dictionary with the keys features, tp, fp, tn, fn, acc, prec, rec, and f1.
 '''
 def evaluate_combo(names, feats, y, folds, k):
-    X = np.column_stack([feats[n][0] for n in names])
+    X = (np.column_stack([feats[n][0] for n in names]) if names
+         else np.empty((len(y), 0), dtype=np.int64))      # Empty set: zero feature columns
     n_cats = [len(feats[n][1]) for n in names]
 
     y_pred = np.zeros(len(y), dtype=np.int64)
@@ -81,9 +84,12 @@ if __name__ == "__main__": # Runs on execution
     folds = list(group_kfold(groups, N_SPLITS))          # Computed once, reused for every combo
 
     all_names = list(feats.keys())
-    combos = list(itertools.combinations(all_names, COMBO_SIZE))
+    max_size = len(all_names) if MAX_COMBO_SIZE is None else min(MAX_COMBO_SIZE, len(all_names))
+    # Exhaustive search: every subset of every size from MIN_COMBO_SIZE up to max_size
+    combos = [c for size in range(MIN_COMBO_SIZE, max_size + 1)
+              for c in itertools.combinations(all_names, size)]
     print(f"Loaded {len(rows):,} balanced records  |  fat rate {y.mean():.1%}")
-    print(f"Testing {len(combos)} combinations of {COMBO_SIZE} from {len(all_names)} features "
+    print(f"Testing {len(combos)} combinations of {MIN_COMBO_SIZE} to {max_size} features out of {len(all_names)} "
           f"({N_SPLITS}-fold grouped CV, k={K_SMOOTHING}, threshold={THRESHOLD})\n")
 
     # King of the hill type to minimize high volume sorting
@@ -105,16 +111,18 @@ if __name__ == "__main__": # Runs on execution
     # Top 10 leaderboard
     shown = results if TOP is None else results[:TOP]
     print(f"TOP {len(shown)} COMBINATIONS (ranked by {RANK_BY.upper()})")
-    print(f"{'#':<3} | {'Features':<45} | {'Acc':>7} | {'Prec':>7} | {'Recall':>7} | {'F1':>7}")
-    print("-" * 90)
+    label_of = lambda r: " + ".join(r["features"]) or "(no features: class prior only)"   # Empty set is the baseline
+    w = max(45, max(len(label_of(r)) for r in shown))   # Features column width, grows for big combos
+    print(f"{'#':<3} | {'Features':<{w}} | {'Acc':>7} | {'Prec':>7} | {'Recall':>7} | {'F1':>7}")
+    print("-" * (w + 45))
     for i, r in enumerate(shown, 1):
-        label = " + ".join(r["features"])
-        print(f"{i:<3} | {label:<45} | {r['acc']:>7.2%} | {r['prec']:>7.2%} | "
+        label = label_of(r)
+        print(f"{i:<3} | {label:<{w}} | {r['acc']:>7.2%} | {r['prec']:>7.2%} | "
               f"{r['rec']:>7.2%} | {r['f1']:>7.2%}")
 
     # Top 1 details
     best = results[0]
-    print("\nBEST COMBINATION:", " + ".join(best["features"]))
+    print("\nBEST COMBINATION:", label_of(best))
     metrics_summary("Naive Bayes (best combo)", best["tp"], best["fp"], best["tn"], best["fn"],
                     best["acc"], best["prec"], best["rec"], best["f1"])
     print_confusion_matrix(best["tp"], best["fp"], best["tn"], best["fn"])
