@@ -1,6 +1,7 @@
 import csv
 import itertools
 import numpy as np
+import matplotlib.pyplot as plt
 from data_preprocessing import load_data
 
 # Minkowski distance formula
@@ -108,7 +109,7 @@ if __name__ == "__main__":
     print(f"Candidates for k : {k_candidates}\n")
     
     #thsi evaluate on a 5000 sample test slice for fast optimization search
-    sub_test_len = min(1000, len(x_test))
+    sub_test_len = len(x_test)
     sub_test_x = x_test[:sub_test_len]
     sub_test_y = y_test[:sub_test_len]
     
@@ -151,7 +152,7 @@ if __name__ == "__main__":
     all_results.sort(key=lambda x: x['f1'], reverse=True)
     
     #this grabs the top 3
-    top_3_results = all_results[:3]
+    top_3_results = all_results[:15]
     
     print("==========================================================")
     print(" TOP 3 CONFIGURATIONS FOUND")
@@ -173,6 +174,34 @@ if __name__ == "__main__":
     #this pulls the predictions from the absolute best model (Rank 1) to show incorrect samples
     best_res = top_3_results[0]
     best_preds = best_res['preds']
+    best_combo = best_res['combo']
+    best_k = best_res['k']
+    best_f1_pct = best_res['f1'] * 100
+
+    #this grabs all k scores for the best feature subset to plot the tuning curve
+    combo_k_scores = {res['k']: res['f1'] * 100 for res in all_results if res['combo'] == best_combo}
+    f1_scores_plot = [combo_k_scores[k] for k in k_candidates]
+
+    #this generates and saves the k-tuning curve graph
+    plt.figure(figsize=(8, 4.5), dpi=300)
+    plt.plot(k_candidates, f1_scores_plot, marker='o', linewidth=2.5, color='#0072b2', markersize=8, label='F1-Score')
+    plt.scatter([best_k], [best_f1_pct], color='#009e73', s=160, zorder=5)
+    plt.annotate(
+        f'Optimal k = {best_k}\n(Peak F1-Score: {best_f1_pct:.2f}%)',
+        xy=(best_k, best_f1_pct),
+        xytext=(best_k + 1.2, best_f1_pct - 0.5),
+        fontsize=10,
+        fontweight='bold',
+        arrowprops=dict(arrowstyle='->', color='#222222', lw=1.5)
+    )
+    plt.xticks(k_candidates)
+    plt.xlabel('Neighborhood Size (k)', fontweight='bold')
+    plt.ylabel('F1-Score (%)', fontweight='bold')
+    plt.title('k-NN Hyperparameter Tuning: Optimal k Achieves Peak F1-Score', fontweight='bold', pad=15)
+    plt.grid(axis='y', linestyle='--', alpha=0.4)
+    plt.tight_layout()
+    plt.savefig('knn_k_tuning_curve.png')
+    print("\nSaved k-tuning curve to knn_k_tuning_curve.png\n")
     
     #this prints sample incorrect classifications for the best model
     print("Sample Incorrect Classifications (Absolute Best Model):")
