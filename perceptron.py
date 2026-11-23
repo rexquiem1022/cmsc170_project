@@ -1,115 +1,88 @@
 import numpy as np
-from data_preprocessing import load_data
+from naive_bayes_model import (DATA_PATH, TARGET_COL, GROUP_COL, load_balanced_rows,
+                               factorize, group_kfold, compute_metrics, metrics_summary)
+from naive_combo_finder import build_all_features
 
-# Perceptron Convergence Algorithm
-#   x(n) = [1, x1, ..., xm]        (x0 = +1 is the fixed bias input)
-#   w(0) = 0
-#   y(n) = sgn(w(n)^T x(n))        (hard limiter)
-#   w(n+1) = w(n) + eta * [d(n) - y(n)] * x(n)
-#   d(n) = +1 for class C1 (fat), -1 for class C2 (non-fat)
+# Perceptron Convergence Algorithm:
+#   x = [1, x1..xm], w(0) = 0, y = sgn(w.x), w <- w + eta * (d - y) * x, d = +1 fat / -1 non-fat
 
-
-def sgn(v):
-    # +1 if v > 0 and -1 if v < 0; v == 0 is not defined,
-    # so we send it to -1 here.
-    return 1 if v > 0 else -1
+# this trains the weights using the perceptron convergence algorithm
+def _train(X, d, eta, max_epochs):
+    w = np.zeros(X.shape[1])                                # w(0) = 0, one weight per column (bias included)
+    for epoch in range(max_epochs):                         # one epoch = one full pass over the training data
+        changed = False                                     # this tracks if any weight was updated in this pass
+        for n in range(len(X)):
+            y = 1 if (w * X[n]).sum() > 0 else -1          # sgn(w.x); sgn(0) -> -1
+            if y != d[n]:                                   # this only updates the weights when the prediction is wrong
+                w += eta * (d[n] - y) * X[n]
+                changed = True
+        if not changed:                                     # a full pass with no mistakes means it converged
+            return w, epoch + 1, True
+    return w, max_epochs, False                             # this stops at max_epochs even if it never converged
 
 
 class Perceptron:
     def __init__(self, eta=0.1, max_epochs=50):
-        self.eta = eta                  # learning rate, 0 < eta < 1
-        self.max_epochs = max_epochs    # stop even if it never converges
-        self.epochs_run = 0
-        self.converged = False
+        self.eta, self.max_epochs = eta, max_epochs         # learning rate and the epoch limit
 
-    def fit(self, x_train, y_train):
-        # Step 1: add x0 = +1 to every input, set w(0) = 0
-        ones = np.ones((x_train.shape[0], 1))
-        x = np.hstack((ones, x_train))
-        d = np.where(y_train == 1, 1, -1)       # desired response: fat -> +1, non-fat -> -1
-        self.w = np.zeros(x.shape[1])
+    def fit(self, X, y):
+        X = np.hstack((np.ones((len(X), 1)), X))           # x0 = +1 bias input
+        d = np.where(y == 1, 1, -1)                        # fat -> +1, non-fat -> -1
+        self.w, self.epochs_run, self.converged = _train(X, d, self.eta, self.max_epochs)
+        return self
 
-        for epoch in range(self.max_epochs):
-            changed = False
-            for n in range(len(x)):
-                y = sgn(np.dot(self.w, x[n]))                   # Step 3: actual response
-                if y != d[n]:
-                    self.w = self.w + self.eta * (d[n] - y) * x[n]   # Step 4: adapt weights
-                    changed = True
-            self.epochs_run = epoch + 1
-            if not changed:                     # weights no longer change -> converged
-                self.converged = True
-                break
-
-    def predict(self, x_test):
-        ones = np.ones((x_test.shape[0], 1))
-        x = np.hstack((ones, x_test))
-        v = x @ self.w
-        return np.where(v > 0, 1, 0)            # back to 1 = fat, 0 = non-fat
+    def predict(self, X):
+        # this adds the bias column, computes w.x for every row, then converts back to 1 = fat, 0 = non-fat
+        return (np.hstack((np.ones((len(X), 1)), X)) @ self.w > 0).astype(int)
 
 
-def compute_metrics(y_true, y_pred):
-    tp = int(np.sum((y_true == 1) & (y_pred == 1)))
-    fp = int(np.sum((y_true == 0) & (y_pred == 1)))
-    tn = int(np.sum((y_true == 0) & (y_pred == 0)))
-    fn = int(np.sum((y_true == 1) & (y_pred == 0)))
-    total = len(y_true)
-    acc = (tp + tn) / total if total > 0 else 0.0
-    prec = tp / (tp + fp) if (tp + fp) > 0 else 0.0
-    rec = tp / (tp + fn) if (tp + fn) > 0 else 0.0
-    f1 = 2 * prec * rec / (prec + rec) if (prec + rec) > 0 else 0.0
-    return tp, fp, tn, fn, acc, prec, rec, f1
+def load_features(path=DATA_PATH):
+    """Same balanced rows and 9 features as Naive Bayes; family-grouped train/test split."""
+    rows = load_balanced_rows(path)                         # this loads the 50/50 balanced rows with tenure
+    feats = build_all_features(rows)                        # this builds the 9 features as integer codes
+    names = list(feats)
+    cols = [feats[n][0].astype(float) for n in names]       # this takes only the codes of each feature
+    cols[names.index("Tenure")] = np.array([float(r["tenure"]) for r in rows])   # numeric, not string-sorted codes
+    X = np.column_stack(cols)                               # this combines the 1D arrays into one 2D matrix
+    span = X.max(0) - X.min(0)
+    X = (X - X.min(0)) / np.where(span == 0, 1, span)      # min-max to [0, 1]; avoids dividing by zero on constant columns
+    y = np.array([int(r[TARGET_COL]) for r in rows])        # target: fat = 1, non-fat = 0
+    groups, _ = factorize([r[GROUP_COL] for r in rows])     # family group id per row (last name)
+    tr, te = next(group_kfold(groups, 5))        # relatives never split across train/test
+    return X, y, groups, tr, te, names
 
 
-def metrics_summary(model_name, tp, fp, tn, fn, acc, prec, rec, f1):
-    print(f"EVALUATION SUMMARY: {model_name.upper()}")
-    print(f"True Positives (TP/Hit): {tp}")
-    print(f"False Positives (FP/False Alarm): {fp}")
-    print(f"True Negatives (TN/Correct Reject): {tn}")
-    print(f"False Negatives (FN/Miss): {fn}")
-    print(f"Accuracy: {acc * 100:.2f}%")
-    print(f"Precision: {prec * 100:.2f}%")
-    print(f"Recall: {rec * 100:.2f}%")
-    print(f"F1-Score: {f1 * 100:.2f}%")
-
-FEATURES = ["Position", "Party", "Region", "Province"]   # baseline features
-# FEATURES = ['Position', 'Municipality', 'Location_Combined']   # searched features
+def min_errors(X, y):
+    """Fewest training mistakes ANY classifier can make: identical feature rows with mixed labels."""
+    _, inv = np.unique(X, axis=0, return_inverse=True)      # this gives the same number to rows with identical features
+    inv = inv.ravel()
+    fat, total = np.bincount(inv, weights=y), np.bincount(inv)   # fat count and total count of each identical-row group
+    return int(np.minimum(fat, total - fat).sum())          # the smaller label in each group is always wrong
 
 
-def load_features(path):
-    """load_data's output without the Tenure column (Tenure is not used)."""
-    x_train, y_train, x_test, y_test, names = load_data(path)
-    keep = [i for i, n in enumerate(names) if n != "Tenure"]
-    return x_train[:, keep], y_train, x_test[:, keep], y_test, [names[i] for i in keep]
+def report(title, feature_names, names, model, X_tr, y_tr, X_te, y_te):
+    cols = [names.index(f) for f in feature_names]          # this converts feature names to column positions
+    pred = model.predict(X_te[:, cols])                     # this predicts on the test set using only those columns
+    print(f"\n{title}\nFeatures: {feature_names}")
+    print(f"Epochs run: {model.epochs_run} | Converged: {model.converged} | Predicted fat: {pred.mean():.1%}")
+    print("Weights [bias, " + ", ".join(feature_names) + "]:", np.round(model.w, 3))
+    metrics_summary("Perceptron", *compute_metrics(y_te, pred))   # this prints the confusion matrix values and metrics
+    mistakes = int(np.sum(model.predict(X_tr[:, cols]) != y_tr))  # this counts wrong predictions on the training set
+    print(f"Train mistakes of final weights: {mistakes:,}/{len(y_tr):,} | "
+          f"unavoidable with these features: {min_errors(X_tr[:, cols], y_tr):,}")
 
+
+# Method 1: top 3 feature sets from naive_combo_finder.py
+NB_TOP3 = [
+    ["Position", "Region", "Province", "Tenure", "Is_Major_Party"],
+    ["Position", "Region", "Province", "Tenure"],
+    ["Position", "Province", "Tenure"],
+]
 
 if __name__ == "__main__":
-    path = "political_dynasty.csv"
-    x_train, y_train, x_test, y_test, feature_names = load_features(path)
-
-    cols = [feature_names.index(n) for n in FEATURES]
-    x_train, x_test = x_train[:, cols], x_test[:, cols]
-
-    model = Perceptron(eta=0.1, max_epochs=50)
-    model.fit(x_train, y_train)
-    preds = model.predict(x_test)
-
-    print("PERCEPTRON CLASSIFICATION RESULTS")
-    print("eta =", model.eta)
-    print("Epochs run:", model.epochs_run)
-    print("Converged:", model.converged)
-    print("Features:", FEATURES)
-    print("Weights [bias, " + ", ".join(n.lower() for n in FEATURES) + "]:", np.round(model.w, 3))
-
-    correct = np.sum(preds == y_test)
-    total = len(y_test)
-    print("Correct predictions:", correct)
-    print("Incorrect predictions:", total - correct)
-    print(f"Accuracy: {correct / total * 100:.2f}%\n")
-
-    tp, fp, tn, fn, acc, prec, rec, f1 = compute_metrics(y_test, preds)
-    metrics_summary("Perceptron", tp, fp, tn, fn, acc, prec, rec, f1)
-
-    # reference: F1 of a model that always predicts "fat"
-    p_fat = y_test.mean()
-    print(f"\nAlways-'fat' baseline F1: {2 * p_fat / (1 + p_fat) * 100:.2f}%")
+    X, y, groups, tr, te, names = load_features()
+    print(f"Train {len(tr):,} | Test {len(te):,} | test fat rate {y[te].mean():.1%}")
+    for i, feats in enumerate(NB_TOP3, 1):
+        cols = [names.index(f) for f in feats]              # columns of the current feature set
+        model = Perceptron().fit(X[tr][:, cols], y[tr])     # this trains a fresh perceptron on the train rows only
+        report(f"METHOD 1 - NAIVE BAYES TOP {i}", feats, names, model, X[tr], y[tr], X[te], y[te])
