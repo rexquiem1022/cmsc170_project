@@ -42,6 +42,18 @@ def compute_metrics(y_true, y_pred):
 
     return tp, fp, tn, fn, acc, prec, rec, f1
 
+# this prints the 2x2 confusion matrix counts and metrics summary
+def metrics_summary(model_name, tp, fp, tn, fn, acc, prec, rec, f1):
+    print(f" EVALUATION SUMMARY: {model_name.upper()}")
+    print(f"True Positives (TP/Hit)           : {tp}")
+    print(f"False Positives (FP/False Alarm)  : {fp}")
+    print(f"True Negatives (TN/Correct Reject): {tn}")
+    print(f"False Negatives (FN/Miss)         : {fn}")
+    print(f"Accuracy                          : {acc:.2f}%")
+    print(f"Precision                         : {prec:.2f}%")
+    print(f"Recall                            : {rec:.2f}%")
+    print(f"F1-Score                          : {f1:.2f}%")
+
 if __name__ == "__main__":
     path = "political_dynasty.csv"
 
@@ -72,8 +84,8 @@ if __name__ == "__main__":
         print(f"NB Rank {rank}: {' + '.join(grp)}")
     print("="*85)
 
-    # this uses a validation slice for fast k-nn evaluation if x_test is large
-    sub_test_len = min(1000, len(x_test))
+    # this uses the full test set for evaluation
+    sub_test_len = len(x_test)
     sub_test_x = x_test[:sub_test_len]
     sub_test_y = y_test[:sub_test_len]
 
@@ -102,6 +114,7 @@ if __name__ == "__main__":
                 'prec': prec,
                 'rec': rec,
                 'f1': f1,
+                'preds': preds,
                 'cm': (tp, fp, tn, fn)
             })
 
@@ -109,8 +122,24 @@ if __name__ == "__main__":
     all_knn_runs.sort(key=lambda x: x['f1'], reverse=True)
     top_10_knn = all_knn_runs[:10]
 
+    print("\n" + "="*58)
+    print(" TOP CONFIGURATIONS FOUND (Naïve Bayes Top 3 Groups x k)")
+    print("="*58)
+
+    # this prints the exact 2x2 confusion matrix summary block for each top rank
+    for rank, res in enumerate(top_10_knn[:3], 1):
+        selected_feature_names = res['combo_names']
+        k = res['k']
+        tp, fp, tn, fn = res['cm']
+
+        print(f"\n--- RANK {rank} ---")
+        print(f"Total Features Selected : {len(selected_feature_names)}")
+        print(f"Features Selected       : {selected_feature_names}")
+        print(f"Best k                  : {k}")
+        metrics_summary(f"RANK {rank} MODEL", tp, fp, tn, fn, res['acc'], res['prec'], res['rec'], res['f1'])
+
     print("\n" + "="*105)
-    print("TOP 10 HIGHEST F1-SCORE CONFIGURATIONS (Top 3 Naïve Bayes Groups x k Values):")
+    print("TOP 10 HIGHEST F1-SCORE SUMMARY TABLE:")
     print("="*105)
     print(f"{'Rank':<5} | {'NB Grp':<6} | {'k':<3} | {'Acc (%)':<8} | {'Prec (%)':<8} | {'Rec (%)':<8} | {'F1 (%)':<8} | {'Features'}")
     print("-"*105)
@@ -133,7 +162,7 @@ if __name__ == "__main__":
     group_runs.sort(key=lambda x: x['k'])
     f1_curve = [r['f1'] for r in group_runs]
 
-    # this plots the tuning curve
+    # this plots and displays the tuning curve
     plt.figure(figsize=(8, 4.5), dpi=300)
     plt.plot(k_candidates, f1_curve, marker='o', linewidth=2.5, color='#0072b2', markersize=8, label='Validation F1-Score')
     plt.scatter([best_k], [best_f1], color='#009e73', s=160, zorder=5)
@@ -153,3 +182,4 @@ if __name__ == "__main__":
     plt.tight_layout()
     plt.savefig('knn_bayes_top3_k_curve.png')
     print("Saved graph as 'knn_bayes_top3_k_curve.png'!")
+    plt.show()
