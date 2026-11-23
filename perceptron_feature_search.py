@@ -1,50 +1,33 @@
 import itertools
 import numpy as np
-from perceptron import Perceptron, compute_metrics, FEATURES, load_features
+from naive_bayes_model import group_kfold, compute_metrics
+from perceptron import Perceptron, load_features, report
 
-# Trained on the "best" features found by a search.
-#
-#   1. Try every subset of the features returned by load_data.
-#   2. Train on 80% of the TRAIN data, score F1 on the other 20% (validation).
-#      The test set is not used for choosing.
-#   3. Train the baseline and the chosen subset on the full train data and
-#      compare them once on the test set.
-
-EPOCHS = 50
-MIN_FAT, MAX_FAT = 0.10, 0.90    # skip subsets that predict one class for (almost) everyone
-
-
-def run(cols, x_a, y_a, x_b, y_b):
-    model = Perceptron(eta=0.1, max_epochs=EPOCHS)
-    model.fit(x_a[:, cols], y_a)
-    preds = model.predict(x_b[:, cols])
-    tp, fp, tn, fn, acc, prec, rec, f1 = compute_metrics(y_b, preds)
-    return f1, acc, rec, preds.mean()
-
+# Method 2: best subset of the 2^9 - 1 = 511 non-empty feature subsets, chosen by validation F1.
+# Train and validation come from the TRAIN part only (family-grouped); the test set is used once.
+# A subset is only eligible if its validation accuracy beats the majority-class baseline.
+# (On balanced data an "always fat" model scores F1 ~ 66.5% while learning nothing, so F1 alone
+#  would reward it.)
 
 if __name__ == "__main__":
-    x_train, y_train, x_test, y_test, names = load_features("political_dynasty.csv")
+    X, y, groups, tr, te, names = load_features()
+    fit, val = next(group_kfold(groups[tr], 5))             # this splits the train part again, relatives stay together
+    fit, val = tr[fit], tr[val]                             # this converts the positions back to the original row indices
+    baseline = max(y[val].mean(), 1 - y[val].mean())        # accuracy of always guessing the larger class
 
-    usable = list(range(len(names)))
+    best = None                                    # (f1, acc, combo, model)
+    for r in range(1, len(names) + 1):                      # this loops through every subset size, 1 to 9 features
+        for combo in itertools.combinations(range(len(names)), r):   # this generates all subsets of that size
+            c = list(combo)                                 # column positions of the current subset
+            model = Perceptron().fit(X[fit][:, c], y[fit])  # this trains on the fit rows only
+            *_, acc, _, _, f1 = compute_metrics(y[val], model.predict(X[val][:, c]))   # this scores on the validation rows
+            if acc > baseline and (best is None or f1 > best[0]):   # this keeps the best F1 among subsets that beat the baseline
+                best = (f1, acc, c, model)
 
-    # split the train data into fit / validation
-    cut = int(0.8 * len(y_train))
-    x_fit, y_fit, x_val, y_val = x_train[:cut], y_train[:cut], x_train[cut:], y_train[cut:]
-
-    print(f"Searching {2 ** len(usable) - 1} subsets of: {[names[i] for i in usable]}")
-    best_f1, best_cols = -1.0, None
-    for r in range(1, len(usable) + 1):
-        for combo in itertools.combinations(usable, r):
-            f1, acc, rec, fat_rate = run(list(combo), x_fit, y_fit, x_val, y_val)
-            if MIN_FAT <= fat_rate <= MAX_FAT and f1 > best_f1:
-                best_f1, best_cols = f1, list(combo)
-    print("Best features (validation F1 %.2f%%):" % (best_f1 * 100), [names[i] for i in best_cols])
-
-    # final comparison on the test set
-    base_cols = [names.index(n) for n in FEATURES]
-    p_fat = y_test.mean()
-    print(f"\n{'':<10}{'F1':>8}{'Accuracy':>10}{'Recall':>9}{'Pred fat':>10}   Features")
-    for label, cols in [("Baseline", base_cols), ("Searched", best_cols)]:
-        f1, acc, rec, fr = run(cols, x_train, y_train, x_test, y_test)
-        print(f"{label:<10}{f1:>8.2%}{acc:>10.2%}{rec:>9.2%}{fr:>10.1%}   {[names[i] for i in cols]}")
-    print(f"Always-'fat' baseline F1: {2 * p_fat / (1 + p_fat):.2%}")
+    if best is None:                                        # this stops if no subset was better than the baseline
+        raise SystemExit(f"No subset beat the {baseline:.2%} majority baseline.")
+    f1, acc, c, model = best
+    print(f"Best subset (val F1 {f1:.2%}, val acc {acc:.2%}, baseline {baseline:.2%})")
+    # this scores the same model that earned the validation result on the test set, only once
+    report("METHOD 2 - BEST SUBSET (test set, scored once)", [names[i] for i in c], names,
+           model, X[fit], y[fit], X[te], y[te])
