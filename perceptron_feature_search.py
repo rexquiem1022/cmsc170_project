@@ -3,7 +3,7 @@ import numpy as np
 from naive_bayes_model import group_kfold, compute_metrics
 from perceptron import Perceptron, load_features, report
 
-# Method 2: best subset of the 2^9 - 1 = 511 non-empty feature subsets, chosen by validation F1.
+# Method 1: best subset of the 2^9 - 1 = 511 non-empty feature subsets, chosen by validation F1.
 # Train and validation come from the TRAIN part only (family-grouped); the test set is used once.
 # A subset is only eligible if its validation accuracy beats the majority-class baseline.
 # (On balanced data an "always fat" model scores F1 ~ 66.5% while learning nothing, so F1 alone
@@ -29,5 +29,5 @@ if __name__ == "__main__":
     f1, acc, c, model = best
     print(f"Best subset (val F1 {f1:.2%}, val acc {acc:.2%}, baseline {baseline:.2%})")
     # this scores the same model that earned the validation result on the test set, only once
-    report("METHOD 2 - BEST SUBSET (test set, scored once)", [names[i] for i in c], names,
+    report("METHOD 1 - BEST SUBSET (test set, scored once)", [names[i] for i in c], names,
            model, X[fit], y[fit], X[te], y[te])

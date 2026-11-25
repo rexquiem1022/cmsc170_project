@@ -72,11 +72,11 @@ def report(title, feature_names, names, model, X_tr, y_tr, X_te, y_te):
           f"unavoidable with these features: {min_errors(X_tr[:, cols], y_tr):,}")
 
 
-# Method 1: top 3 feature sets from naive_combo_finder.py
+# Method 2: top 3 feature sets from naive_combo_finder.py
 NB_TOP3 = [
-    ["Position", "Region", "Province", "Tenure", "Is_Major_Party"],
     ["Position", "Region", "Province", "Tenure"],
-    ["Position", "Province", "Tenure"],
+    ["Position", "Region", "Province", "Tenure", "Is_Major_Party"],
+    ["Region", "Tenure"],
 ]
 
 if __name__ == "__main__":
@@ -85,4 +85,4 @@ if __name__ == "__main__":
     for i, feats in enumerate(NB_TOP3, 1):
         cols = [names.index(f) for f in feats]              # columns of the current feature set
         model = Perceptron().fit(X[tr][:, cols], y[tr])     # this trains a fresh perceptron on the train rows only
-        report(f"METHOD 1 - NAIVE BAYES TOP {i}", feats, names, model, X[tr], y[tr], X[te], y[te])
+        report(f"METHOD 2 - NAIVE BAYES TOP {i}", feats, names, model, X[tr], y[tr], X[te], y[te])
