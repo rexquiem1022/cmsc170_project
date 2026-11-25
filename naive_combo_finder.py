@@ -6,7 +6,7 @@ from naive_bayes_model import *
 # ------------------------------------------------------------------ CONFIG
 MIN_COMBO_SIZE = 0      # Smallest number of features in a combination (0 = empty set, class prior only)
 MAX_COMBO_SIZE = None   # Largest number of features in a combination (None = all features)
-N_SPLITS = 5            # grouped K-fold (relatives stay in the same fold)
+N_SPLITS = 5            # 80/20 split: 1 of 5 grouped folds (20%) is the test set, the other 4 (80%) train
 RANK_BY = "f1"          # f1 score ranking
 TOP = 10                # get top 10 best combos
 
@@ -53,22 +53,21 @@ def build_all_features(rows):
     Scores one combination of features with grouped cross validation.
     Stacks the chosen feature columns into one matrix and records the number of categories of each.
     Handles an empty combination by giving the model zero feature columns, so it predicts from the class prior alone.
-    Trains a fresh NaiveBayes model for every fold and predicts the held out rows, thresholding at THRESHOLD, so that every row receives exactly one out-of-fold prediction.
-    Computes the metrics once over all rows using those out-of-fold predictions, which makes scores comparable between combinations.
+    Trains one NaiveBayes model on the training rows (80%) and predicts the held out test rows (20%), thresholding at THRESHOLD.
+    Computes the metrics on the test rows only, so the model is never scored on data it was trained on, and every combination is judged on the same rows.
+    Parameters tr and te: The train and test row positions, computed once with group_kfold and reused for every combination.
     Returns: A dictionary with the keys features, tp, fp, tn, fn, acc, prec, rec, and f1.
 '''
-def evaluate_combo(names, feats, y, folds, k):
+def evaluate_combo(names, feats, y, tr, te, k):
     X = (np.column_stack([feats[n][0] for n in names]) if names
          else np.empty((len(y), 0), dtype=np.int64))      # Empty set: zero feature columns
     n_cats = [len(feats[n][1]) for n in names]
 
-    y_pred = np.zeros(len(y), dtype=np.int64)
-    for tr, te in folds:
-        model = NaiveBayes(n_cats, k).fit(X[tr], y[tr])
-        y_pred[te] = (model.predict_proba(X[te]) >= THRESHOLD).astype(np.int64)
+    model = NaiveBayes(n_cats, k).fit(X[tr], y[tr])                           # Fit on the 80% training rows only
+    y_pred = (model.predict_proba(X[te]) >= THRESHOLD).astype(np.int64)       # Predict the 20% test rows
 
-    # every row is in exactly one test fold, so y_pred holds out-of-fold predictions for all rows
-    tp, fp, tn, fn, acc, prec, rec, f1 = compute_metrics(y, y_pred)
+    # Metrics use the held-out test rows only
+    tp, fp, tn, fn, acc, prec, rec, f1 = compute_metrics(y[te], y_pred)
     return {"features": names, "tp": tp, "fp": fp, "tn": tn, "fn": fn,
             "acc": acc, "prec": prec, "rec": rec, "f1": f1}
 
@@ -81,7 +80,7 @@ if __name__ == "__main__": # Runs on execution
     y = np.array([int(float(r[TARGET_COL] or 0)) for r in rows], dtype=np.int64)
     groups, _ = factorize([r[GROUP_COL] for r in rows])
     feats = build_all_features(rows)
-    folds = list(group_kfold(groups, N_SPLITS))          # Computed once, reused for every combo
+    tr, te = next(group_kfold(groups, N_SPLITS))         # 80/20 split by last name (same as run_model), computed once and reused for every combo
 
     all_names = list(feats.keys())
     max_size = len(all_names) if MAX_COMBO_SIZE is None else min(MAX_COMBO_SIZE, len(all_names))
@@ -90,12 +89,14 @@ if __name__ == "__main__": # Runs on execution
               for c in itertools.combinations(all_names, size)]
     print(f"Loaded {len(rows):,} balanced records  |  fat rate {y.mean():.1%}")
     print(f"Testing {len(combos)} combinations of {MIN_COMBO_SIZE} to {max_size} features out of {len(all_names)} "
-          f"({N_SPLITS}-fold grouped CV, k={K_SMOOTHING}, threshold={THRESHOLD})\n")
+          f"(k={K_SMOOTHING}, threshold={THRESHOLD})")
+    print(f"Train: {len(tr):,} records ({len(tr) / len(rows):.0%}, fat rate {y[tr].mean():.1%})  |  "
+          f"Test: {len(te):,} records ({len(te) / len(rows):.0%}, fat rate {y[te].mean():.1%})  |  grouped by {GROUP_COL}\n")
 
     # King of the hill type to minimize high volume sorting
     top = []                                             # always sorted best-first
     for names in combos:
-        r = evaluate_combo(names, feats, y, folds, K_SMOOTHING)
+        r = evaluate_combo(names, feats, y, tr, te, K_SMOOTHING)
 
         # Keep r if there is room, or it strictly beats the current worst survivor.
         # Strict ">" means a result that merely ties 10th place does not displace it.
