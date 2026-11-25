@@ -19,7 +19,7 @@ cmsc170_project/
 ├── naive_bayes_model.py           # Gaussian Naïve Bayes classifier
 ├── naive_combo_finder.py          # Exhaustive feature combination search for Naïve Bayes
 ├── perceptron.py                  # Single-Layer Perceptron classifier
-├── perceptron_feature_search.py   # 255-subset validation feature search for Perceptron
+├── perceptron_feature_search.py   # 511-subset validation feature search for Perceptron
 ├── index.md                       # GitHub Pages website source
 └── README.md                      # Repository documentation & task log
 ```
@@ -58,7 +58,7 @@ Run the commands directly from the repository root:
   ```bash
   python3 naive_combo_finder.py
   ```
-* **Run Single-Layer Perceptron & 255-Subset Feature Search:**
+* **Run Single-Layer Perceptron & 511-Subset Feature Search:**
   ```bash
   python3 perceptron_feature_search.py
   python3 perceptron.py
@@ -73,4 +73,4 @@ Run the commands directly from the repository root:
 | **Lance Gabriel A. Barroso** | **Group Leader & Lead Developer:** Architected and implemented the core data preprocessing pipeline (`data_preprocessing.py`), `undersample_5050` balancing logic, feature engineering (`Is_Executive`, `Location_Combined`), vectorized k-NN classifier (`knn_model.py`) with exhaustive `itertools` feature subset search, repository integration, readme and github pages initialization , and end-to-end experiment execution. | 
 | **Arman Carl P. Arañez** | **Data & Feature Contributor:** Assisted with dataset inspection, feature engineering (`Is_Major_Party`), and Milestone documentation. | 
 | **Jmil Anchelo N. Bodiongan** | **Algorithm Developer (Naïve Bayes):** Implemented the Gaussian Naïve Bayes classifier (`naive_bayes_model.py`), feature pair search (`naive_combo_finder.py`), and confusion matrix evaluation metrics ($TP, FP, TN, FN$). | 
-| **Jericko B. Bacar** | **Algorithm Developer (Perceptron) & Analyst:** Implemented the Single-Layer Perceptron (`perceptron.py`), 255-subset validation search (`perceptron_feature_search.py`). | 
+| **Jericko B. Bacar** | **Algorithm Developer (Perceptron) & Analyst:** Implemented the Single-Layer Perceptron (`perceptron.py`), 511-subset validation search (`perceptron_feature_search.py`). | 
