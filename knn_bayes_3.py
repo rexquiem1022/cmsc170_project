@@ -9,7 +9,7 @@ class KNN:
 
     def fit(self, x_train, y_train):
         self.x_train = x_train
-        self.y_train = y_train
+        self.y_train = y_train.astype(int)
 
     def predict_multiple_k(self, x_test, k_candidates):
         # this returns a dictionary of predictions for every k at the same time
@@ -22,22 +22,22 @@ class KNN:
 
             for k in k_candidates:
                 k_labels = self.y_train[k_idx_max[:k]]
-                counts = np.bincount(k_labels)
-                all_preds[k].append(np.argmax(counts))
+                counts = np.bincount(k_labels, minlength=2)
+                all_preds[k].append(int(np.argmax(counts)))
 
         return {k: np.array(preds) for k, preds in all_preds.items()}
 
 # for the calculation of the metrics
 def compute_metrics(y_true, y_pred):
-    tp = np.sum((y_true == 1) & (y_pred == 1)) # true positive
-    fp = np.sum((y_true == 0) & (y_pred == 1)) # false positive
-    tn = np.sum((y_true == 0) & (y_pred == 0)) # true negative
-    fn = np.sum((y_true == 1) & (y_pred == 0)) # false negative
+    tp = int(np.sum((y_true == 1) & (y_pred == 1))) # true positive
+    fp = int(np.sum((y_true == 0) & (y_pred == 1))) # false positive
+    tn = int(np.sum((y_true == 0) & (y_pred == 0))) # true negative
+    fn = int(np.sum((y_true == 1) & (y_pred == 0))) # false negative
 
     total = len(y_true)
-    acc = ((tp + tn) / total * 100) if total > 0 else 0.0
-    prec = (tp / (tp + fp) * 100) if (tp + fp) > 0 else 0.0
-    rec = (tp / (tp + fn) * 100) if (tp + fn) > 0 else 0.0
+    acc = ((tp + tn) / total * 100.0) if total > 0 else 0.0
+    prec = (tp / (tp + fp) * 100.0) if (tp + fp) > 0 else 0.0
+    rec = (tp / (tp + fn) * 100.0) if (tp + fn) > 0 else 0.0
     f1 = (2 * prec * rec / (prec + rec)) if (prec + rec) > 0 else 0.0
 
     return tp, fp, tn, fn, acc, prec, rec, f1
@@ -63,16 +63,19 @@ if __name__ == "__main__":
         x_train, y_train, x_test, y_test, feature_names = data_out
     else:
         x_train, y_train, x_test, y_test = data_out
-        feature_names = ['Position', 'Party', 'Region', 'Province', 'Municipality', 'Tenure', 'Is_Executive', 'Location_Combined', 'Is_Major_Party']
+        feature_names = [
+            'Position', 'Party', 'Region', 'Province', 'Municipality.City',
+            'Tenure', 'Is_Executive', 'Location_Combined', 'Is_Major_Party'
+        ]
 
     # this maps feature names to their column indices
     feat_idx_map = {name: i for i, name in enumerate(feature_names)}
 
-    # top 3 feature combinations derived from naive_combo_finder.py (ranked by F1)
+    # updated top 3 feature combinations derived from naive_combo_finder.py (ranked by F1)
     top_3_nb_groups = [
-        ['Position', 'Region', 'Province', 'Tenure', 'Is_Major_Party'], # Rank 1 (60.78% NB F1)
-        ['Position', 'Region', 'Province', 'Tenure'],                   # Rank 2 (60.76% NB F1)
-        ['Position', 'Province', 'Tenure']                              # Rank 3 (60.52% NB F1)
+        ['Position', 'Region', 'Province', 'Tenure'],                   # Rank 1 (62.65% NB F1, 63.26% Acc)
+        ['Position', 'Region', 'Province', 'Tenure', 'Is_Major_Party'], # Rank 2 (62.62% NB F1, 63.19% Acc)
+        ['Region', 'Tenure']                                            # Rank 3 (62.24% NB F1, 58.88% Acc)
     ]
 
     k_candidates = [1, 3, 5, 7, 9, 11, 13, 15]
@@ -162,6 +165,10 @@ if __name__ == "__main__":
     group_runs.sort(key=lambda x: x['k'])
     f1_curve = [r['f1'] for r in group_runs]
 
+    # keep annotation inside plot bounds even if best_k is 13 or 15
+    text_x = best_k - 3.2 if best_k >= 13 else best_k + 1.0
+    text_y = best_f1 - 0.8
+
     # this plots and displays the tuning curve
     plt.figure(figsize=(8, 4.5), dpi=300)
     plt.plot(k_candidates, f1_curve, marker='o', linewidth=2.5, color='#0072b2', markersize=8, label='Validation F1-Score')
@@ -169,7 +176,7 @@ if __name__ == "__main__":
     plt.annotate(
         f'Optimal k = {best_k}\n(Peak F1: {best_f1:.2f}%)',
         xy=(best_k, best_f1),
-        xytext=(best_k + 1.2, best_f1 - 0.6),
+        xytext=(text_x, text_y),
         fontsize=10,
         fontweight='bold',
         arrowprops=dict(arrowstyle='->', color='#222222', lw=1.5)
